@@ -19,6 +19,7 @@ output_dir.mkdir(exist_ok=True)
 tongue_gif = "assets/tongue.gif"
 closed_eyes_gif = "assets/closed_eyes.gif"
 six_seven_gif = "assets/six_seven.gif"
+freak_sonic_gif = "assets/freaky_sonic.gif"
 
 #Load GIFs
 def load_gif(path):
@@ -33,6 +34,7 @@ def load_gif(path):
 tongue_frames = load_gif(tongue_gif)
 eyes_frames = load_gif(closed_eyes_gif)
 hands_frames = load_gif(six_seven_gif)
+sonic_frames = load_gif(freak_sonic_gif)
 
 def eye_aspect_ratio(landmarks, eye_indices):
     p1, p2, p3, p4, p5, p6 = [np.array([landmarks[i].x, landmarks[i].y]) for i in eye_indices]
@@ -58,6 +60,15 @@ def detect_hand_gesture(hand_landmarks):
 
     return distance < 0.1   #if dist is small enough then consider it is a specifis gesture(maybe i'll change it later)
 
+def detect_hand_over_head(hand_landmarks, face_landmarks, margin=0.0):
+    if face_landmarks is None:
+        return False
+    
+    wrist_y = hand_landmarks.landmark[0].y
+
+    face_top_y = min([lm.y for lm in face_landmarks])
+
+    return wrist_y < (face_top_y - margin)
 
 
 EYE_AR_THRESH = 0.20
@@ -80,8 +91,11 @@ while True:
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = face_mesh.process(rgb)
 
+
+    face_landmarks = None
     if results.multi_face_landmarks:
         landmarks = results.multi_face_landmarks[0].landmark
+        face_landmarks = landmarks
 
         left_eye_idx = [33, 160, 158, 133, 153, 144]
         right_eye_idx = [263, 387, 385, 362, 380, 373]
@@ -105,13 +119,18 @@ while True:
 
     hand_results = hands.process(rgb)
     if hand_results.multi_hand_landmarks:
+        hand_over_head = 0
         for hand_landmarks in hand_results.multi_hand_landmarks:
             if detect_hand_gesture(hand_landmarks):
                 reaction_mode = "hands"
                 cv2.putText(frame, "six sevennn", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
 
+            if detect_hand_over_head(hand_landmarks, face_landmarks, margin=0.02):
+                hand_over_head += 1
 
-
+        if hand_over_head >= 2:
+            reaction_mode = "sonic"
+            cv2.putText(frame, "HELL YEAHHHH", (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
 
     #Display main camera feed
     cv2.imshow("Freak Detector", frame)
@@ -127,6 +146,10 @@ while True:
         reaction_index += 1
     elif reaction_mode == "hands" and hands_frames:
         gif_frame = hands_frames[reaction_index % len(hands_frames)]
+        cv2.imshow("Reaction", gif_frame)
+        reaction_index += 1
+    elif reaction_mode == "hands" and sonic_frames:
+        gif_frame = sonic_frames[reaction_index % len(sonic_frames)]
         cv2.imshow("Reaction", gif_frame)
         reaction_index += 1
     else:
